@@ -6,12 +6,30 @@ from machine import Pin
 import time
 import random
 import json
+import urequests
+import network
+
+FIREBASE_URL = "https://miniproject-c7ea8-default-rtdb.firebaseio.com/response_times.json"
 
 
 N: int = 10
 sample_ms = 10.0
 on_ms = 500
 
+def connect_wifi(ssid, password):
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+
+    if not wlan.isconnected():
+        print("Connecting to network...")
+        wlan.connect(ssid, password)
+
+        while not wlan.isconnected():
+            time.sleep(1)
+    
+    print("Connected! Network config:", wlan.ifconfig())
+
+connect_wifi('dawgs on three', 'bumen10s')
 
 def random_time_interval(tmin: float, tmax: float) -> float:
     """return a random time interval between max and min"""
@@ -28,21 +46,26 @@ def blinker(N: int, led: Pin) -> None:
         time.sleep(0.1)
 
 
-def write_json(json_filename: str, data: dict) -> None:
+def write_json(data: dict) -> None:
     """Writes data to a JSON file.
 
     Parameters
     ----------
 
-    json_filename: str
-        The name of the file to write to. This will overwrite any existing file.
-
     data: dict
         Dictionary data to write to the file.
     """
-
-    with open(json_filename, "w") as f:
-        json.dump(data, f)
+    
+    try:
+        response = urequests.post(FIREBASE_URL, json=data)
+        
+        if response.status_code == 200:
+            print("Data successfully written to Firebase!")
+        else:
+            print(f"Failed to write data to Firebase. Status code: {response.status_code}")
+    
+    except Exception as e:
+        print(f"Error uploading data to Firebase: {e}")
 
 
 def scorer(t: list[int | None]) -> None:
@@ -77,15 +100,7 @@ def scorer(t: list[int | None]) -> None:
 
     # %% make dynamic filename and write JSON
 
-    now: tuple[int] = time.localtime()
-
-    now_str = "-".join(map(str, now[:3])) + "T" + "_".join(map(str, now[3:6]))
-    filename = f"score-{now_str}.json"
-
-    print("write", filename)
-
-    write_json(filename, data)
-
+    write_json(data)
 
 if __name__ == "__main__":
     # using "if __name__" allows us to reuse functions in other script files
@@ -116,4 +131,5 @@ if __name__ == "__main__":
     blinker(5, led)
 
     scorer(t)
+
 
